@@ -43,7 +43,6 @@ Edit `API\bookstack-config.json` and set:
 - `BookSlug`
 - `TokenId`
 - `TokenSecret`
-- `SourceDir`
 - `ReadyDir`
 
 Keep `DeleteAfterImport` set to `false` until you have tested the import.
@@ -57,12 +56,21 @@ Run commands from the project root.
 ### 1. Prepare The HTML
 
 ```powershell
-.\API\_1_prepare-confluence-html-for-bookstack.ps1 `
-  -InputPath "C:\Path\To\ConfluenceExport\SpaceFolder" `
-  -OutputDir "C:\Path\To\Bookstack\API_ReadyforImport"
+.\API\_1_prepare-confluence-html-for-bookstack.ps1
 ```
 
-This creates cleaned HTML files and embeds local attachment images.
+When prompted, provide the folder from your Confluence HTML export that contains the page `.html` files.
+
+To avoid the prompt, pass the source folder:
+
+```powershell
+.\API\_1_prepare-confluence-html-for-bookstack.ps1 `
+  -InputPath "C:\Path\To\ConfluenceExport\SpaceFolder"
+```
+
+The script creates cleaned HTML files in `ReadyDir` from your config and embeds local attachment images.
+
+If `ReadyDir` does not exist, it is created. If it already exists, its contents are deleted before the new prepared files are written.
 
 ### 2. Organize The Files
 

@@ -1,11 +1,9 @@
 param(
-    [Parameter(Mandatory = $true)]
     [string]$InputPath,
     [string]$OutputDir,
     [string]$ConfigPath = (Join-Path $PSScriptRoot "bookstack-config.json"),
     [switch]$Recurse,
-    [switch]$IncludeIndex,
-    [switch]$CleanOutput
+    [switch]$IncludeIndex
 )
 
 Set-StrictMode -Version Latest
@@ -36,6 +34,83 @@ function Get-ConfigValue {
     }
 
     return $Default
+}
+
+function Get-NormalizedFullPath {
+    param([Parameter(Mandatory = $true)][string]$Path)
+
+    $fullPath = [System.IO.Path]::GetFullPath([System.Environment]::ExpandEnvironmentVariables($Path))
+    return $fullPath.TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
+}
+
+function Test-IsSameOrChildPath {
+    param(
+        [Parameter(Mandatory = $true)][string]$Parent,
+        [Parameter(Mandatory = $true)][string]$Candidate
+    )
+
+    $parentFull = Get-NormalizedFullPath -Path $Parent
+    $candidateFull = Get-NormalizedFullPath -Path $Candidate
+
+    if ($candidateFull.Equals($parentFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    $parentWithSeparator = $parentFull + [System.IO.Path]::DirectorySeparatorChar
+    $parentWithAltSeparator = $parentFull + [System.IO.Path]::AltDirectorySeparatorChar
+    return $candidateFull.StartsWith($parentWithSeparator, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $candidateFull.StartsWith($parentWithAltSeparator, [System.StringComparison]::OrdinalIgnoreCase)
+}
+
+function Reset-OutputDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$SourcePath
+    )
+
+    $outputFull = Get-NormalizedFullPath -Path $Path
+    $rootFull = ([System.IO.Path]::GetPathRoot($outputFull)).TrimEnd([char[]]@([System.IO.Path]::DirectorySeparatorChar, [System.IO.Path]::AltDirectorySeparatorChar))
+    if ($outputFull.Equals($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean drive root: $outputFull"
+    }
+
+    $scriptDir = Get-NormalizedFullPath -Path $PSScriptRoot
+    $projectRoot = Get-NormalizedFullPath -Path (Split-Path -Path $PSScriptRoot -Parent)
+    if ($outputFull.Equals($scriptDir, [System.StringComparison]::OrdinalIgnoreCase) -or
+        $outputFull.Equals($projectRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean script/project folder: $outputFull"
+    }
+
+    $sourceItem = Get-Item -LiteralPath $SourcePath
+    $sourceRoot = if ($sourceItem.PSIsContainer) { $sourceItem.FullName } else { $sourceItem.DirectoryName }
+    if (Test-IsSameOrChildPath -Parent $outputFull -Candidate $sourceRoot) {
+        throw "Output directory cannot be the source directory or a parent of it: $outputFull"
+    }
+
+    if (Test-Path -LiteralPath $outputFull -PathType Leaf) {
+        throw "Output path is a file, not a folder: $outputFull"
+    }
+
+    if (-not (Test-Path -LiteralPath $outputFull -PathType Container)) {
+        New-Item -ItemType Directory -Path $outputFull -Force | Out-Null
+        return $outputFull
+    }
+
+    Write-Host "Resetting output folder: $outputFull"
+    $children = @(Get-ChildItem -LiteralPath $outputFull -Force)
+    foreach ($child in $children) {
+        $childFull = Get-NormalizedFullPath -Path $child.FullName
+        if (-not (Test-IsSameOrChildPath -Parent $outputFull -Candidate $childFull) -or
+            $childFull.Equals($outputFull, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to remove unexpected path: $childFull"
+        }
+    }
+
+    foreach ($child in $children) {
+        Remove-Item -LiteralPath $child.FullName -Recurse -Force
+    }
+
+    return $outputFull
 }
 
 function Get-HtmlFiles {
@@ -240,25 +315,38 @@ function Convert-ConfluencePage {
 
 $config = Read-OptionalConfig -Path $ConfigPath
 
+if (-not $PSBoundParameters.ContainsKey("InputPath") -or [string]::IsNullOrWhiteSpace($InputPath)) {
+    $InputPath = Read-Host "Provide source directory of exported Confluence HTML files"
+}
+
+if ([string]::IsNullOrWhiteSpace($InputPath)) {
+    throw "Provide the source directory of exported Confluence HTML files."
+}
+
+$InputPath = $InputPath.Trim().Trim('"')
+
 if (-not $PSBoundParameters.ContainsKey("OutputDir") -or [string]::IsNullOrWhiteSpace($OutputDir)) {
     $configuredReadyDir = Get-ConfigValue -Config $config -Name "ReadyDir"
-    if (-not [string]::IsNullOrWhiteSpace($configuredReadyDir) -and $configuredReadyDir -ne "C:\Path\To\Confluence-space-export.html\Ready for Bookstack\ByAPI") {
+    if (-not [string]::IsNullOrWhiteSpace($configuredReadyDir) -and $configuredReadyDir -notlike "C:\Path\To\*") {
         $OutputDir = $configuredReadyDir
     }
     else {
-        $inputItem = Get-Item -LiteralPath $InputPath
-        $baseDir = if ($inputItem.PSIsContainer) { $inputItem.FullName } else { $inputItem.DirectoryName }
-        $OutputDir = Join-Path $baseDir "Ready for Bookstack\ByAPI"
+        $projectRoot = Split-Path -Path $PSScriptRoot -Parent
+        $OutputDir = Join-Path $projectRoot "API_ReadyforImport"
     }
 }
 
-if (-not (Test-Path -LiteralPath $OutputDir)) {
-    New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+if ([string]::IsNullOrWhiteSpace($OutputDir)) {
+    throw "Output directory is not set. Set ReadyDir in bookstack-config.json or pass -OutputDir."
 }
 
-if ($CleanOutput) {
-    Get-ChildItem -LiteralPath $OutputDir -Filter "*.html" -File | Remove-Item -Force
+$OutputDir = $OutputDir.Trim().Trim('"')
+if (-not [System.IO.Path]::IsPathRooted($OutputDir)) {
+    $projectRoot = Split-Path -Path $PSScriptRoot -Parent
+    $OutputDir = Join-Path $projectRoot $OutputDir
 }
+
+$OutputDir = Reset-OutputDirectory -Path $OutputDir -SourcePath $InputPath
 
 $files = @(Get-HtmlFiles -Path $InputPath)
 if (-not $IncludeIndex) {

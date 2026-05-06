@@ -4,7 +4,6 @@ param(
     [string]$BookUrl,
     [string]$BookSlug,
     [string]$ReadyDir,
-    [string]$SourceDir,
     [string]$TokenId,
     [string]$TokenSecret,
     [int]$ApiTimeoutSec,
@@ -398,7 +397,6 @@ $BaseUrl = Use-ParameterOrConfig -Name "BaseUrl" -Config $config -BoundParameter
 $BookUrl = Use-ParameterOrConfig -Name "BookUrl" -Config $config -BoundParameters $CommandLineParameters
 $BookSlug = Use-ParameterOrConfig -Name "BookSlug" -Config $config -BoundParameters $CommandLineParameters
 $ReadyDir = Use-ParameterOrConfig -Name "ReadyDir" -Config $config -BoundParameters $CommandLineParameters
-$SourceDir = Use-ParameterOrConfig -Name "SourceDir" -Config $config -BoundParameters $CommandLineParameters
 $TokenId = Use-ParameterOrConfig -Name "TokenId" -Config $config -BoundParameters $CommandLineParameters
 $TokenSecret = Use-ParameterOrConfig -Name "TokenSecret" -Config $config -BoundParameters $CommandLineParameters
 $ApiTimeoutSec = [int](Use-ParameterOrConfig -Name "ApiTimeoutSec" -Config $config -BoundParameters $CommandLineParameters -Default 300)
@@ -413,7 +411,7 @@ Assert-ConfiguredValue -Name "BaseUrl" -Value $BaseUrl -Placeholders @("https://
 Assert-ConfiguredValue -Name "BookSlug" -Value $BookSlug -Placeholders @("your-book-slug")
 Assert-ConfiguredValue -Name "TokenId" -Value $TokenId -Placeholders @("BOOKSTACK_TOKEN_ID_HERE")
 Assert-ConfiguredValue -Name "TokenSecret" -Value $TokenSecret -Placeholders @("BOOKSTACK_TOKEN_SECRET_HERE")
-Assert-ConfiguredValue -Name "ReadyDir" -Value $ReadyDir -Placeholders @("C:\Path\To\Confluence-space-export.html\Ready for Bookstack\ByAPI")
+Assert-ConfiguredValue -Name "ReadyDir" -Value $ReadyDir -Placeholders @("C:\Path\To\Bookstack\API_ReadyforImport")
 
 if (@("Curl", "WebRequest") -notcontains $WriteClient) {
     throw "WriteClient must be either 'Curl' or 'WebRequest'. Current value: $WriteClient"
