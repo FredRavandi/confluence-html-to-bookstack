@@ -1,0 +1,47 @@
+﻿# Local config and secrets
+API/bookstack-config.json
+**/*hardcoded*token*.ps1
+**/*_backup.ps1
+**/*backup.ps1
+**/*.legacy*.ps1
+
+
+# Generated output and raw exports
+API_ReadyforImport/
+Confluence-space-export-*.html/
+BookStackImports/
+Ready for Bookstack/
+**/attachments/
+**/styles/
+
+# Generated summaries and backups
+conversion-summary.txt
+hyperlink-fix-summary.txt
+_hyperlink_backup_*/
+**/_hyperlink_backup_*/
+
+# Local notes / editor state
+AGENT.md
+.vscode/
+.idea/
+*.code-workspace
+Thumbs.db
+Desktop.ini
+
+# Logs and temp files
+*.log
+*.tmp
+*.bak
+*.old
+
+# PowerShell / OS noise
+*.ps1xml
+*.psm1~
+*.ps1~
+
+# Node/Python caches if helper tooling is added later
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/

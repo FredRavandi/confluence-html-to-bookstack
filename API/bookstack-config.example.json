@@ -1,0 +1,12 @@
+{
+  "BaseUrl": "https://your-bookstack.example.com",
+  "BookUrl": "https://your-bookstack.example.com/books/your-book-slug",
+  "BookSlug": "your-book-slug",
+  "TokenId": "BOOKSTACK_TOKEN_ID_HERE",
+  "TokenSecret": "BOOKSTACK_TOKEN_SECRET_HERE",
+  "ReadyDir": "C:\\Path\\To\\Bookstack\\API_ReadyforImport",
+  "SourceDir": "C:\\Path\\To\\Confluence-space-export.html\\YourSpace",
+  "ApiTimeoutSec": 300,
+  "WriteClient": "Curl",
+  "DeleteAfterImport": false
+}
