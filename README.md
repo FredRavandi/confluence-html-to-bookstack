@@ -1,100 +1,89 @@
-﻿# BookStack Confluence Import Tools
+# Confluence HTML to BookStack
 
-PowerShell utilities for converting a Confluence HTML space export into BookStack API-ready HTML, fixing internal links after manual organization, and importing the result into a BookStack book.
+PowerShell tools to convert a Confluence HTML export into BookStack pages.
 
-This project was built for a workflow where Confluence-exported pages are prepared locally, organized into folders that represent BookStack chapters, then uploaded through the BookStack REST API.
-
-## What This Does
-
-- Extracts useful page body HTML from Confluence export files.
-- Embeds local Confluence attachment images as `data:image/...;base64,...` so pages can be imported as self-contained HTML.
-- Lets you manually organize prepared HTML files into folders before import.
-- Converts immediate subfolders under the ready folder into BookStack chapters.
-- Rewrites Confluence-origin hyperlinks to BookStack page URLs before import.
-- Imports pages into a configured BookStack book via API.
-
-## Folder Layout
-
-Recommended project layout:
+The scripts are numbered in the order you run them:
 
 ```text
-Bookstack/
-  API/
-    bookstack-config.example.json
-    bookstack-config.json              # local only, ignored by git
-    _1_prepare-confluence-html-for-bookstack.ps1
-    _2_fix-bookstack-hyperlinks.ps1
-    _3_import-ready-bookstack.ps1
-  API_ReadyforImport/                  # generated/organized output, ignored by git
-  Confluence-space-export-*.html/       # raw Confluence exports, ignored by git
-  AGENT.md                            # local agent notes, ignored by git
-  README.md
-  .gitignore
+API/
+  _1_prepare-confluence-html-for-bookstack.ps1
+  _2_fix-bookstack-hyperlinks.ps1
+  _3_import-ready-bookstack.ps1
+  bookstack-config.example.json
 ```
 
-## Configuration
+## What It Does
 
-Copy the example config and fill in your own values:
+- Converts exported Confluence HTML pages into cleaner BookStack-ready HTML.
+- Embeds local Confluence attachment images into the HTML.
+- Lets you organize pages into folders before import.
+- Converts folders into BookStack chapters.
+- Fixes internal Confluence links after the files are organized.
+- Imports the pages into BookStack through the BookStack API.
+
+## Requirements
+
+- PowerShell.
+- A Confluence HTML space export.
+- A BookStack API token.
+- Access to the target BookStack book.
+
+## Setup
+
+Copy the example config:
 
 ```powershell
 Copy-Item .\API\bookstack-config.example.json .\API\bookstack-config.json
 ```
 
-Required config fields:
+Edit `API\bookstack-config.json` and set:
 
-- `BaseUrl`: BookStack base URL, for example `https://bookstack.example.com`.
-- `BookUrl`: Full URL to the target book, for example `https://bookstack.example.com/books/my-book`.
-- `BookSlug`: Target BookStack book slug.
-- `TokenId`: BookStack API token ID.
-- `TokenSecret`: BookStack API token secret.
-- `ReadyDir`: Folder containing prepared and organized HTML files.
-- `SourceDir`: Original Confluence HTML export folder.
-- `WriteClient`: Usually `Curl`, which is more reliable for large HTML/image payloads.
-- `DeleteAfterImport`: Use `false` for first runs. Use `true` only when you are comfortable deleting successfully imported HTML files.
+- `BaseUrl`
+- `BookUrl`
+- `BookSlug`
+- `TokenId`
+- `TokenSecret`
+- `SourceDir`
+- `ReadyDir`
 
-Do not commit `bookstack-config.json`; it contains secrets and local paths.
+Keep `DeleteAfterImport` set to `false` until you have tested the import.
+
+Do not commit `bookstack-config.json`. It contains local paths and API secrets.
 
 ## Workflow
 
 Run commands from the project root.
 
-### 1. Prepare Confluence HTML
-
-Convert a Confluence export folder into BookStack-ready HTML:
+### 1. Prepare The HTML
 
 ```powershell
 .\API\_1_prepare-confluence-html-for-bookstack.ps1 `
-  -InputPath "C:\Path\To\Confluence-space-export.html\YourSpace" `
+  -InputPath "C:\Path\To\ConfluenceExport\SpaceFolder" `
   -OutputDir "C:\Path\To\Bookstack\API_ReadyforImport"
 ```
 
-The script:
+This creates cleaned HTML files and embeds local attachment images.
 
-- extracts `<div id="main-content">` where available,
-- removes scripts/styles/comments,
-- embeds local images from Confluence `attachments`,
-- writes `conversion-summary.txt`.
+### 2. Organize The Files
 
-### 2. Organize Files
-
-Manually arrange the generated HTML files:
+Arrange the prepared files before import:
 
 ```text
 API_ReadyforImport/
-  Page-at-book-root.html
+  Root Page.html
   Chapter Name/
-    Page-in-that-chapter.html
+    Page In Chapter.html
 ```
 
-Import behavior:
+Import rules:
 
-- HTML files directly in `ReadyDir` become book-level pages.
+- HTML files directly inside `ReadyDir` become pages at the book root.
 - Immediate subfolders become BookStack chapters.
-- HTML files inside a subfolder become pages in that chapter.
+- HTML files inside a subfolder become pages inside that chapter.
 
-### 3. Fix Hyperlinks
+### 3. Fix Internal Links
 
-Dry-run first:
+Dry run:
 
 ```powershell
 .\API\_2_fix-bookstack-hyperlinks.ps1
@@ -106,63 +95,41 @@ Apply changes:
 .\API\_2_fix-bookstack-hyperlinks.ps1 -Commit
 ```
 
-The script rewrites:
+This rewrites Confluence page links and local `.html` links to BookStack page URLs.
 
-- Confluence page URLs such as `/wiki/spaces/.../pages/123456789/...`
-- local `.html` links between exported pages
+### 4. Import To BookStack
 
-to BookStack page URLs under the configured `BookUrl`.
-
-When run with `-Commit`, it creates a `_hyperlink_backup_yyyyMMdd-HHmmss` folder unless `-NoBackup` is provided. It also writes `hyperlink-fix-summary.txt`.
-
-### 4. Dry-Run Import
+Dry run:
 
 ```powershell
 .\API\_3_import-ready-bookstack.ps1
 ```
 
-This checks the target book and prints what would be created or updated.
-
-### 5. Import
-
-Create new pages/chapters:
+Create pages and chapters:
 
 ```powershell
 .\API\_3_import-ready-bookstack.ps1 -Commit
 ```
 
-Update existing pages too:
+Update existing pages and chapters:
 
 ```powershell
 .\API\_3_import-ready-bookstack.ps1 -Commit -UpdateExisting
 ```
 
-Run a tiny API test page:
+## Notes
 
-```powershell
-.\API\_3_import-ready-bookstack.ps1 -SmokeTest -Commit
-```
+- File names become BookStack page names.
+- A trailing Confluence page ID such as `_3067805697` is removed from the page name.
+- `---` in a file name becomes ` - ` in the page name.
+- The hyperlink fixer can only fix links to files that exist under `ReadyDir`.
+- Very large pages with many embedded images may fail with HTTP `413`. Split the page or increase your BookStack/web server request size limit.
+- Keep generated exports, prepared HTML, real configs, and backup scripts out of Git.
 
-Delete the smoke-test page manually in BookStack after confirming the API path works.
+## Acknowledgement
 
-## Important Notes
+This project was built with reference to the BookStack API and the BookStack API script examples:
 
-- Keep `DeleteAfterImport` set to `false` until you have verified the import behavior.
-- Rename numeric-only HTML files before running the hyperlink fixer/importer if you want readable BookStack page names and slugs.
-- The hyperlink fixer only rewrites links it can map to files present under `ReadyDir`.
-- Remote Confluence images that are not local attachments may remain as remote URLs. Those may not render for users without access to the source Confluence site.
-- BookStack page names are derived from file names. A trailing Confluence page ID like `_3067805697` is removed.
-- `---` in a file name becomes ` - ` in the BookStack page title.
+https://codeberg.org/bookstack/api-scripts
 
-## Public Repository Safety
-
-Before publishing:
-
-- Confirm `API/bookstack-config.json` is not committed.
-- Confirm any old scripts with hardcoded tokens are not committed.
-- Confirm generated HTML exports are not committed unless they are safe to publish.
-- Review prepared HTML for internal company data before sharing publicly.
-
-The included `.gitignore` is intentionally conservative to reduce accidental disclosure.
-
-
+This project is not officially affiliated with or supported by the BookStack project.
